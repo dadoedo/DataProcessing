@@ -1,0 +1,6 @@
+application.py
+*.pyc
+dpenv/*
+dp.ini
+dp.sock
+wsgi.py
