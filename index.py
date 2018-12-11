@@ -10,6 +10,8 @@ app.layout = html.Div([
     html.Div(id='page-content')
 ])
 
+server = app.server
+
 
 @app.callback(Output('page-content', 'children'),
               [Input('url', 'pathname')])
@@ -18,8 +20,8 @@ def display_page(pathname):
         return tdms.layout
     elif pathname == '/visualisation/mat':
         return mat.layout
-    elif pathname == '/visualisation/4dot':
-        return fourdot.layout
+    # elif pathname == '/visualisation/4dot':
+    #     return fourdot.layout
     else:
         return home.layout
 
