@@ -2,7 +2,7 @@ import ntpath
 
 from tdms_processing import tdms_files
 from nptdms import TdmsFile
-import dash
+import json
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State, Event
@@ -17,7 +17,6 @@ layout = html.Div(children=[
         }
     ),
     dcc.Link('Home', href='/', style={'textAlign': 'right'}),
-    html.Label('Dropdown'),
     dcc.Dropdown(id='filename_dropdown',
                  options=
                  tdms_files.generate_dropdown_inputs('/home/david/Documents/4dot_data/example_data', 'tdms'),
@@ -34,10 +33,29 @@ layout = html.Div(children=[
 def update_output(path):
     if path is not None:
         tdms_file = TdmsFile(path)
-        children = [html.H3('File = {}'.format(ntpath.basename(path).split('.')[0]), style={'textAlign': 'center'})]
-        for g in tdms_file.groups():
-            for c in tdms_file.group_channels(g):
-                if c.channel is not '0':
-                    children.append(mat.plot_graph(c.data, 'Sensor {}'.format(c.channel)))
+        root = tdms_file.object()
 
+        filename = ntpath.basename(path).split('.')[0]
+        children = [html.H3('{}'.format(filename), style={'textAlign': 'center'}),
+                    ]
+        date = "20{}-{}-{} {}:{}:{}".format(filename.split('_')[-2][:2], filename.split('_')[-2][2:4],
+                                            filename.split('_')[-2][4:6], filename.split('_')[-1][:2],
+                                            filename.split('_')[-1][2:4], filename.split('_')[-1][4:6])
+        children.append(html.H4("Captured @ {}".format(date), style={'textAlign': 'center'}))
+
+        for g in tdms_file.groups():
+            children.append(html.H5('Group of Channels: Name = {}'.format(g), style={'textAlign': 'center'}))
+
+            for c in tdms_file.group_channels(g):
+                if len(c.data) > 3:
+                    if 'Description' in c.properties:
+                        children.append(mat.plot_graph(c.data, 'Channel Name = {}, SF = {}, time = {}s'.format(
+                            c.channel, json.loads(c.property('Description'))['sf'],
+                            len(c.data) / json.loads(c.property('Description'))['sf'])))
+                    else:
+                        children.append(mat.plot_graph(c.data, 'Channel Name = {}'.format(c.channel)))
+                else:
+                    children.append(html.H5('Channel Name = {}, {} samples'.format(c.channel, len(c.data)),
+                                            style={'textAlign': 'center'}))
+                    children.append(html.H5('Data = {}'.format(c.data), style={'textAlign': 'center'}))
         return children
