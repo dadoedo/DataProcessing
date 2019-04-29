@@ -1,14 +1,25 @@
 import dash_core_components as dcc
 import dash_html_components as html
+import MySQLdb
 
-layout = html.Div(children=[
-    html.H2('Data Processing, Visualisation', style={'textAlign': 'center'}),
-    html.H4('Prehľad dostupných dát'),
-    dcc.Link('Dáta spoločnosti 4dot', href='/visualisation/tdms', style={'margin-left': '35px'}),
-    html.Br(),
-    dcc.Link('Verejne dostupné datasety', href='/visualisation/mat', style={'margin-left': '35px'}),
-    html.Br(),
-    dcc.Link('Device local', href='/visualisation/4dot', style={'margin-left': '35px'}),
 
-], style={'margin-left': '35px'},
-)
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+
+conn_get = MySQLdb.connect(host="172.16.23.204", user="fourdot", passwd="4d0tFourdot", db="dp")
+cursor = conn_get.cursor()
+cursor.execute("SELECT name, id FROM device")
+rows = cursor.fetchall()
+children = [html.H2('Monitored Devices', style={'textAlign': 'center'})]
+for row in rows:
+    children.append(html.H6("{}".format(row[0]), style={'margin-left': '35px'}))
+    children.append(dcc.Link("Overlook/history", href="/device/history/{}".format(row[1]),
+                             style={'margin-left': '75px'}))
+    children.append(html.Br())
+    children.append(dcc.Link("Real Time", href="/device/realtime/{}".format(row[1]),
+                             style={'margin-left': '75px'}))
+    children.append(html.Br())
+    children.append(html.Br())
+
+layout = html.Div(children=children, style={'margin-left': '35px'})

@@ -1,13 +1,23 @@
+import glob
 import ntpath
 
-from tdms_processing import tdms_files
 from nptdms import TdmsFile
 import json
 import dash_core_components as dcc
 import dash_html_components as html
-from dash.dependencies import Input, Output, State, Event
+from dash.dependencies import Input, Output
 from app import app
-from visualisation import mat
+
+
+def generate_dropdown_inputs(directory_path, file_type):
+    if directory_path[-1:] is not '/':
+        directory_path = directory_path + '/'
+    tdms_filenames = glob.glob(directory_path + '**/*.{}'.format(file_type), recursive=True)
+    result = []
+    for name in tdms_filenames:
+        result.append({'label': ntpath.basename(name), 'value': name})
+    return result
+
 
 layout = html.Div(children=[
     html.H2(
@@ -19,7 +29,8 @@ layout = html.Div(children=[
     dcc.Link('Home', href='/', style={'textAlign': 'right'}),
     dcc.Dropdown(id='filename_dropdown',
                  options=
-                 tdms_files.generate_dropdown_inputs('/home/david/Documents/4dot_data/example_data', 'tdms'),
+                 # tdms_files.generate_dropdown_inputs('/home/david/Documents/4dot_data/example_data', 'tdms'),
+                 generate_dropdown_inputs("/home/david/HDD/PSL", 'tdms'),
                  ),
     html.Div(id='output-tdms-graphs'),
 ])

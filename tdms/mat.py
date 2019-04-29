@@ -12,7 +12,6 @@ from dash.dependencies import Input, Output, State, Event
 
 from app import app
 import plotly.graph_objs as go
-from tdms_processing import tdms_files
 
 
 def plot_graph(data, name):
