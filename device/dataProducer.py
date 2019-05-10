@@ -16,11 +16,11 @@ import time as t
 import random as rnd
 import sys
 import numpy as np
-from home import eprint
 
 
 class DataProducerTcpServer(th.Thread):
     def __init__(self, threadID, address, port):
+        print("DATA PRODUCER ===========  Created...")
         th.Thread.__init__(self)
         self.threadID = threadID
         self.done = False
@@ -35,12 +35,9 @@ class DataProducerTcpServer(th.Thread):
         self.conn = None
         self.addr = None
 
-    def stop(self):
-        if self.conn:
-            self.conn.close()
-        self.done = True
-
     def __connect(self):
+        # self.socket.setblocking(False)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((self.ip, self.port))
         print("DATA PRODUCER ===========  Waiting...")
         self.socket.listen(1)
@@ -48,7 +45,7 @@ class DataProducerTcpServer(th.Thread):
         print('DATA PRODUCER ===========  Connected to address: {}'.format(self.addr))
 
     def run(self):
-        print("DATA PRODUCER ===========  done = {}, pause = {}".format(self.done,self.pause))
+        print("DATA PRODUCER ===========  done = {}, pause = {}".format(self.done, self.pause))
         self.__connect()
         print('DATA PRODUCER ===========  Going to main loop')
         while not self.done:
@@ -67,10 +64,10 @@ class DataProducerTcpServer(th.Thread):
         unpackString = '!'
         for i in range(0, (len(receivedBytes) // 8)):
             unpackString = unpackString + 'd'
-        print(len(receivedBytes))
-        print(unpackString)
+
         received = struct.unpack(unpackString, receivedBytes)
-        print(received)
+        print("PRUDCER RECIEVED = {}".format(received))
+
         if len(received) is 0:
             return False
 
@@ -80,6 +77,10 @@ class DataProducerTcpServer(th.Thread):
             else:
                 self.values.append(value)
 
+        print("PRODUCER STATE = {}".format({
+            "values": self.values,
+            "timestamps": self.timestamps,
+        }))
         t.sleep(self.sleep_time)
         return True
 
@@ -93,7 +94,7 @@ class DataProducerTcpServer(th.Thread):
         timestamps = self.timestamps
         self.values = []
         self.timestamps = []
-        print("DATA PRODUCER -------------- Get data called on dataProducer Object")
+        # print("DATA PRODUCER -------------- returning {}".format({'values':values, 'times':timestamps}))
         return {
             "values": values,
             "timestamps": timestamps,
@@ -102,7 +103,20 @@ class DataProducerTcpServer(th.Thread):
     def pauseData(self, state):
         self.pause = state
 
+    def stop(self):
+        if self.conn:
+            print("------- PRODUCER stop() called")
+            self.conn.close()
+            # self.conn.__del__()
+            self.socket.shutdown(socket.SHUT_RDWR)
+            self.socket.close()
+
     def __del__(self):
-        self.stop()
+        if self.conn:
+            print("------- PRODUCER stop() called")
+            self.conn.close()
+            # self.conn.__del__()
+            self.socket.shutdown(socket.SHUT_RDWR)
+            self.socket.close()
         self.values = []
         self.timestamps = []

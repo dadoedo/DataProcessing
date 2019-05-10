@@ -5,11 +5,11 @@ import home
 from app import app
 from tdms import tdms, mat
 from device import history, realTime
+from batch import processing
+from apscheduler.schedulers.blocking import BlockingScheduler
 
-app.layout = html.Div([
-    dcc.Location(id='url', refresh=False),
-    html.Div(id='page-content')
-])
+
+sched = BlockingScheduler()
 
 server = app.server
 
@@ -22,7 +22,7 @@ def display_page(pathname):
             if pathnameArray[2] == "history":
                 return history.returnLayout(pathnameArray[3])
             if pathnameArray[2] == "realtime":
-                return realTime.returnLayout()
+                return realTime.returnLayout(pathnameArray[3])
     if pathname == '/visualisation/tdms':
         return tdms.layout
     elif pathname == '/visualisation/mat':
@@ -33,5 +33,19 @@ def display_page(pathname):
         return home.layout
 
 
+app.layout = html.Div([
+    dcc.Location(id='url', refresh=False),
+    html.Div(id='page-content'),
+])
+
+
+# Runs as cron job every day at 3AM in the morning
+# Calls batch processing
+@sched.scheduled_job('cron', day_of_week='mon-sun', hour=3)
+def scheduledBatchProcessing():
+    processing.processBatches()
+
+
 if __name__ == '__main__':
-    app.run_server(threaded=False, debug=False)
+    app.run_server(threaded=True, debug=False)
+    sched.start()

@@ -26,20 +26,20 @@ PATHS_TO_COMPANIES = [
 
 PATH_TO_DATA = PATHS_TO_COMPANIES[2]
 
-INFO = configparser.ConfigParser()
-INFO.read(PATH_TO_DATA + '/info.ini')
-DPI = 500
-
-Sensors = INFO['Sensors']['SensorNames'].split(';')
-Sensorlabels = []
-for sensor in Sensors:
-    sensorName = sensor.replace('\'', '')
-    sensorName = sensorName.replace('/', '_')
-    sensorName = sensorName.replace(' ', '_')
-    Sensorlabels.append(sensorName)
-
-NumOfFilesForSensor = INFO['Sensors']['NumOfFilesForSensor'].split(';')
-NumOfFilesForSensor = [718, 718, 718]
+# INFO = configparser.ConfigParser()
+# INFO.read(PATH_TO_DATA + '/info.ini')
+# DPI = 500
+#
+# Sensors = INFO['Sensors']['SensorNames'].split(';')
+# Sensorlabels = []
+# for sensor in Sensors:
+#     sensorName = sensor.replace('\'', '')
+#     sensorName = sensorName.replace('/', '_')
+#     sensorName = sensorName.replace(' ', '_')
+#     Sensorlabels.append(sensorName)
+#
+# NumOfFilesForSensor = INFO['Sensors']['NumOfFilesForSensor'].split(';')
+# NumOfFilesForSensor = [718, 718, 718]
 
 analyses = {  # Analysis ID, Device ID
     "ZKL Hlava 3": [408, 11],
@@ -372,8 +372,8 @@ def insertTimestampsToDB(path):
 
 
 if __name__ == '__main__':
-    insertTimestampsToDB(PATHS_TO_COMPANIES[0])
-
+    # insertTimestampsToDB(PATHS_TO_COMPANIES[0])
+    getInfoOfRawDataFolder("/mnt/sda2/Device_C")
     # conn_get = MySQLdb.connect(host="172.16.23.204", user="fourdot", passwd="4d0tFourdot", db="chipmunk")
     # sql_query = "SELECT time,value FROM analysis_value " \
     #             "WHERE (senzor = 1) ORDER BY time"
