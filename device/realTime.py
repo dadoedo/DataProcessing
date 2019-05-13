@@ -1,118 +1,22 @@
-"""
-Producer/Controller Dash Outline
-Copyright 2018 Steve Korson
-"""
 import time
-
-import weakref
 import MySQLdb
-from dash.dependencies import Output, Event, Input, State
+
+from dash.dependencies import Output, Input, State
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
-import threading as th
-import time as t
-from device.dataProducer import DataProducerTcpServer
-from device.dataSender import DataSender
+
+from realtime.dataReceiver import DataReceiver
+from realtime.dataSender import DataSender
+from realtime.dataController import DataController
+
 from app import app
 from app import configInfo
-from app import dataProducerTcpServerObjects, dataSenderObjects, controllerObjects
+from app import controllerObjects
 
 conn_get = MySQLdb.connect(host=configInfo["DATABASE"]["host"], user=configInfo["DATABASE"]["username"],
                            passwd=configInfo["DATABASE"]["password"], db=configInfo["DATABASE"]["database"])
 cursor = conn_get.cursor()
-
-
-class DataController(th.Thread):
-    def __init__(self, threadID, producerObj, senderObj):
-        # Passing in producer target here for demo
-        # Typical system has controller and producer connected external
-        th.Thread.__init__(self)
-        self.threadID = threadID
-        self.done = False
-        self.producerObj = producerObj
-        self.senderObj = senderObj
-        self.sleep_time = 0.250
-        self.busy = False
-        self.__cmd = None
-        self.__newCmd = False
-        self.fakeRspTime = 0
-        self.paused = True
-
-    def stop(self):
-        self.done = True
-
-    def run(self):
-        while not self.done:
-            # Main loop
-            if self.__newCmd:
-                self.__newCmd = False
-                self.__procCmd()
-            if self.busy:
-                # self.busy = self.__check_for_rsp(timeout=0.250)
-                self.busy = False
-            t.sleep(self.sleep_time)
-        # Cleanup
-
-    def getData(self):
-        return self.producerObj.getData()
-
-    def send_cmd(self, cmd):
-        """
-            Method used by callers to send commands to the command interface
-        """
-        if not self.busy:
-            self.busy = True
-            self.__newCmd = True
-            self.__cmd = cmd
-            return True
-        else:
-            raise UserWarning("Command interpreter is busy.")
-
-    def __procCmd(self):
-        """
-        Emulate sending a commnd out a socket or other IPC
-        """
-        # -----------------------------
-        self.busy = True
-        if self.__cmd == 'P':  # Pause
-            if self.paused:
-                self.paused = False
-            else:
-                self.paused = True
-            self.producerObj.pauseData(self.paused)
-
-        if self.__cmd == 'R':
-            self.senderObj.pauseData()
-        # -----------------------------
-
-    def __check_for_rsp(self, timeout):
-        """
-            Once command is sent out the interface, await a response (or timeout)
-        """
-        t.sleep(timeout)
-
-        # For now emulate checking for a response
-        # ---------------------------------
-        # This can take a random amount of loops (not time really)
-        # before setting a non-busy result.
-        # ---------------------------------
-
-    def deleteSenderProducer(self):
-        self.producerObj.__del__()
-        self.senderObj.__del__()
-
-        print("----- controller deleted producer and sender")
-
-
-# controllerObjects = []
-# dataSenderObjects = []
-# dataProducerTcpServerObjects = []
-# cursor.execute("SELECT id FROM device")
-# for row in cursor.fetchall():
-#     deviceId = row[0]
-#     controllerObjects.append({"id": deviceId, "object": None})
-#     dataSenderObjects.append({"id": deviceId, "object": None})
 
 layout = html.Div(
     [
@@ -132,18 +36,17 @@ layout = html.Div(
             }}),
         dcc.Interval(
             id='interval-component',
-            interval=1 * 100,  # in milliseconds
+            interval=1 * 300,  # in milliseconds
             n_intervals=0
         ),
-        dcc.ConfirmDialog(
-            id='confirm',
-            message='Danger danger! Are you sure you want to continue?',
+        html.Button('Start Recieveing Data', id='buttonReciever', style={'margin': '50px'}),
+        html.Button('Start Sending Data', id='buttonSender', style={'margin': '50px'}),
+        html.Br(),
+        dcc.ConfirmDialogProvider(
+            children=html.Button('Reset', style={'margin-left': '50px'}),
+            id='button-reset-confirm',
+            message='All displayed data will be lost'
         ),
-        html.Button('Start Recieveing Data (dataProducer.py paused change)', id='buttonPause'),
-        html.Br(),
-        html.Button('Start Sending Data (dataSender.py start simulating realtime data)', id='buttonSenderStart'),
-        html.Br(),
-        html.Button('Reset', id='buttonReset', ),
         html.Div(id="outputDiv", children="")
     ]
 )
@@ -157,44 +60,25 @@ def returnLayout(deviceId):
         return html.Div("Bad Link!")
     deviceName = deviceName[0]
     time.sleep(1)
-    # global dataSenderObjects
-    # global controllerObjects
 
-    print(dataSenderObjects)
-    print(controllerObjects)
-    print(deviceId)
-
-    dataSenderObj = next(item for item in dataSenderObjects if item["id"] == int(deviceId))['object']
     controllerObj = next(item for item in controllerObjects if item["id"] == int(deviceId))['object']
-    print(dataSenderObj)
-    print("dataSenderOBJ is none = {}".format(dataSenderObj is None))
 
-    if dataSenderObj is not None and controllerObj is not None:
-        # controllerObj.deleteSenderProducer()
-        # print("dataSenderOBJ is none = {}".format(dataSenderObj is None))
-
+    if controllerObj is not None:
         return layout
-        time.sleep(1)
 
-    portNumber = 32009 + int(deviceId)
-    # time.sleep(3)
-    # global dataProducerTcpServerObjects
+    portNumber = 32015 + int(deviceId)
 
-    dataProducerTcpServerObj = next((item for item in dataProducerTcpServerObjects if item["id"] == deviceId), None)
-    if dataProducerTcpServerObj is None:
-        dataProducerTcpServerObj = DataProducerTcpServer(1, 'localhost', portNumber)
-        dataSenderObj = DataSender(1, "localhost", portNumber, configInfo["PATH"]["pathToDevices"] + deviceName)
+    dataRecieverObj = DataReceiver(1, 'localhost', portNumber)
+    dataSenderObj = DataSender(1, "localhost", portNumber, configInfo["PATH"]["pathToDevices"] + deviceName)
 
-        controllerObj = DataController(1, dataProducerTcpServerObj, dataSenderObj)
+    controllerObj = DataController(1, dataRecieverObj, dataSenderObj, deviceName)
 
-        dataProducerTcpServerObj.start()
-        time.sleep(1)
-        dataSenderObj.start()
+    dataRecieverObj.start()
+    time.sleep(0.25)
+    dataSenderObj.start()
+    controllerObj.start()
 
-        controllerObj.start()
-        next(item for item in dataSenderObjects if item["id"] == int(deviceId))['object'] = dataSenderObj
-        next(item for item in controllerObjects if item["id"] == int(deviceId))['object'] = controllerObj
-        dataProducerTcpServerObjects.append({'id' : deviceId, 'object': dataProducerTcpServerObj})
+    next(item for item in controllerObjects if item["id"] == int(deviceId))['object'] = controllerObj
 
     return layout
 
@@ -208,12 +92,12 @@ def update_data(n, pathname, state):
         return
     deviceId = int(pathname[-1])
     controllerObj = next(item for item in controllerObjects if item["id"] == deviceId)['object']
-
+    deviceName = ''
     if controllerObj is not None:
         data = controllerObj.getData()
+        deviceName = controllerObj.deviceName
     else:
         data = {'timestamps': [], 'values': []}
-    # print("requesting data for graph {}".format(data))
     if state is None:
         return {
             'data': [
@@ -222,7 +106,7 @@ def update_data(n, pathname, state):
                     y=[],
                 )],
             'layout': {
-                'title': "Real Time Simulation",
+                'title': "Real Time Simulation - {}".format(deviceName),
                 'yaxis': {
                     'title': 'Amplitude'
                 }
@@ -234,7 +118,7 @@ def update_data(n, pathname, state):
             'y': (state["data"][0]["y"]) + data["values"],
         }],
         'layout': {'uirevision': 'static',
-                   'title': "Real Time Simulation",
+                   'title': "Real Time Simulation - {}".format(deviceName),
                    'yaxis': {
                        'title': 'Amplitude'
                    }
@@ -242,61 +126,63 @@ def update_data(n, pathname, state):
     }
 
 
-@app.callback(Output('buttonReset', 'children'),
-              [Input('buttonReset', 'n_clicks'),
-               Input('url-realtime', 'pathname')])
-def send_reset(n_clicks, pathname):
-
-    if n_clicks is None:
-        return 'Reset (untouched)'
-    # Optionally to try and except, you could semaphore protect the calls (with fileIO rather than globals)
-    deviceId = int(pathname[-1])
-    controllerObj = next(item for item in controllerObjects if item["id"] == deviceId)['object']
-    print("send_reset")
-    print(controllerObjects)
-    try:
-        controllerObj.send_cmd('R')
-    except:
-        print("Interface is busy. Handle the exception.")
-    return 'Reset'
+# @app.callback(Output('url', 'pathname'),
+#               [Input('button-reset-confirm', 'submit_n_clicks'),
+#                Input('url-realtime', 'pathname')
+#                ])
+# def sendReset(n_clicks, pathname):
+#     if n_clicks is None:
+#         return
+#     deviceId = int(pathname[-1])
+#     controllerObj = next(item for item in controllerObjects if item["id"] == deviceId)['object']
+#     # try:
+#     controllerObj.send_cmd('X')
+#     deviceName = controllerObj.deviceName
+#     # except:print("Interface is busy. Handle the exception.")
+#     print('pathname')
+#     return pathname
 
 
-@app.callback(Output('buttonSenderStart', 'children'),
-              [Input('buttonSenderStart', 'n_clicks'),
+@app.callback(Output('buttonSender', 'children'),
+              [Input('buttonSender', 'n_clicks'),
                Input('url-realtime', 'pathname')], )
 def sendStartData(n_clicks, pathname):
     if "realtime" not in pathname:
         return
-    if n_clicks is None:
-        return 'Start Sending Data (dataSender.py)'
-    print("sendStarrtData")
-    print(controllerObjects)
     deviceId = int(pathname[-1])
-    dataSenderObj = next(item for item in dataSenderObjects if item["id"] == deviceId)['object']
-    dataSenderObj.changePausedState()
-    if n_clicks % 2:
-        return 'Pause Sending Data (dataSender.py)'
-    return 'Resume Sending Data (dataSender.py)'
+    controllerObj = next(item for item in controllerObjects if item["id"] == deviceId)['object']
+
+    if n_clicks is None:
+        if controllerObj.senderObj.isPausedState():
+            return 'Start Receiving Data'
+        return 'Pause Receiving Data'
+    wasPaused = controllerObj.senderObj.isPausedState()
+    try:
+        controllerObj.send_cmd('S')
+    except:
+        print("Interface is busy. Handle the exception.")
+    if wasPaused:
+        return 'Pause Data Sending'
+    return 'Start Data Sending'
 
 
-@app.callback(Output('buttonPause', 'children'),
-              [Input('buttonPause', 'n_clicks'),
+@app.callback(Output('buttonReciever', 'children'),
+              [Input('buttonReciever', 'n_clicks'),
                Input('url-realtime', 'pathname')])
 def send_pause(n_clicks, pathname):
     if "realtime" not in pathname:
         return
-    if n_clicks is None:
-        return 'Start Recieveing Data (dataProducer.py)'
-
-    # Optionally to try and except, you could semaphore protect the calls (with fileIO rather than globals)
     deviceId = int(pathname[-1])
-    print("send_pause")
-    print(controllerObjects)
     controllerObj = next(item for item in controllerObjects if item["id"] == deviceId)['object']
+    if n_clicks is None:
+        if controllerObj.recieverObj.isPausedState():
+            return 'Start Receiving Data'
+        return 'Pause Receiving Data'
+    wasPaused = controllerObj.recieverObj.isPausedState()
     try:
-        controllerObj.send_cmd('P')
+        controllerObj.send_cmd('R')
     except:
         print("Interface is busy. Handle the exception.")
-    if n_clicks % 2:
-        return 'Pause Recieveing Data (dataProducer.py)'
-    return 'Resume Recieveing Data (dataProducer.py)'
+    if wasPaused:
+        return 'Pause Receiving Data'
+    return 'Start Receiving Data'

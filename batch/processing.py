@@ -27,14 +27,6 @@ typeToHeadings = {
     COMPANY_TYPE: 'Partnered company\'s reference processed data',
 }
 
-devices = [{'name': 'Device_A', 'id': 1},
-           {'name': 'Device_B', 'id': 2},
-           {'name': 'Device_C', 'id': 3},
-           {'name': 'Device_D', 'id': 4}]
-
-HOST = 'localhost'
-PORT = 32001
-
 
 def computeFeatureExtractions(deviceName, filenames, sensorExtractionTypesInfo, infoFile, threadID):
     configInfo = configparser.ConfigParser()
@@ -52,7 +44,7 @@ def computeFeatureExtractions(deviceName, filenames, sensorExtractionTypesInfo, 
         return
     print(sensorExtractionTypesInfo)
     timestamp = 0
-    plotID = 0
+    plot_setID = 0
 
     for filename in filenames:
         pbar.set_description(f' THREAD {threadID} -- {deviceName} -- Processing {filename}')
@@ -60,7 +52,7 @@ def computeFeatureExtractions(deviceName, filenames, sensorExtractionTypesInfo, 
         tdmsf = TdmsFile(os.path.join(configInfo['PATH']['pathToDevices'] + deviceName + '/', filename))
 
         for sensorExtractionTypes in sensorExtractionTypesInfo:
-            plotID = sensorExtractionTypes[0]
+            plot_setID = sensorExtractionTypes[0]
             plottedSensor = sensorExtractionTypes[1]
             extractionTypes = sensorExtractionTypes[2]
 
@@ -83,15 +75,15 @@ def computeFeatureExtractions(deviceName, filenames, sensorExtractionTypesInfo, 
 
             if MEAN_AVERAGE_TYPE in extractionTypes:
                 mean = sensorMeasurement.mean()
-                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(timestamp, mean, MEAN_AVERAGE_TYPE, plotID)
+                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(timestamp, mean, MEAN_AVERAGE_TYPE, plot_setID)
 
             if SKEWNESS_TYPE in extractionTypes:
                 skewness = stats.skew(sensorMeasurement)
-                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(timestamp, skewness, SKEWNESS_TYPE, plotID)
+                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(timestamp, skewness, SKEWNESS_TYPE, plot_setID)
 
             if VARIANCE_TYPE in extractionTypes:
                 variance = np.var(sensorMeasurement).mean()
-                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(timestamp, variance, VARIANCE_TYPE, plotID)
+                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(timestamp, variance, VARIANCE_TYPE, plot_setID)
 
             if RMS_TYPE in extractionTypes:
                 Fs = int(infoFile["Sensors"]["FS"]) / 100  # konverzia na Hz * 0.01, aby visiel vysledok pre ms a nie s
@@ -102,7 +94,7 @@ def computeFeatureExtractions(deviceName, filenames, sensorExtractionTypesInfo, 
                 for i in range(0, steps):
                     x_RMS[i] = np.sqrt(np.mean(sensorMeasurement[(i * w):((i + 1) * w)] ** 2))
                 rms = x_RMS.mean()
-                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(timestamp, rms, RMS_TYPE, plotID)
+                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(timestamp, rms, RMS_TYPE, plot_setID)
 
             # Here would be placed another processing method, If I had one
                 # e.g. The partner company could call their algorithms
@@ -120,8 +112,8 @@ def computeFeatureExtractions(deviceName, filenames, sensorExtractionTypesInfo, 
     cursor.execute(query)
     conn_get.commit()
 
-    if plotID is not 0:
-        query = "UPDATE plot SET last_processed_time = {} WHERE id = {}".format(plotID, timestamp)
+    if plot_setID is not 0:
+        query = "UPDATE plot_set SET last_processed_time = {} WHERE id = {}".format(plot_setID, timestamp)
         print(query)
         cursor.execute(query)
         conn_get.commit()
@@ -135,10 +127,11 @@ def processBatches():
                                passwd=configInfo["DATABASE"]["password"], db=configInfo["DATABASE"]["database"])
     cursor = conn_get.cursor()
 
-    for device in devices:
-        print(device)
+    devices = pd.read_sql("Select * from device", conn_get)
+    for device in devices.itertuples():
+        print(device.name)
         INFO = configparser.ConfigParser()
-        INFO.read(configInfo['PATH']['pathToDevices'] + str(device['name']) + '/info.ini')
+        INFO.read(configInfo['PATH']['pathToDevices'] + str(device.name) + '/info.ini')
 
         sensorExtractionTypesInfo = []
 
@@ -146,28 +139,28 @@ def processBatches():
 
         for sensorName, sensorLabel in zip(INFO['Sensors']['SensorNames'].split(';'),
                                            INFO['Sensors']['SensorLabels'].split(';')):
-            plotId = None
+            plot_setId = None
             if sensorName is "" or sensorLabel is "":
                 continue
-            query = "select id, last_processed_time from plot where device_id = \"{}\" and sensor = \"{}\" ".format(
-                device['id'],
+            query = "select id, last_processed_time from plot_set where device_id = \"{}\" and sensor = \"{}\" ".format(
+                device.id,
                 sensorLabel)
             cursor.execute(query)
             rows = cursor.fetchall()
             if len(rows) is 0:
-                query = "INSERT INTO plot (device_id, sensor, last_processed_time) VALUES ({}, \"{}\")".format(
-                    device['id'], sensorLabel, 0)
+                query = "INSERT INTO plot_set (device_id, sensor, last_processed_time) VALUES ({}, \"{}\")".format(
+                    device.id, sensorLabel, 0)
                 cursor.execute(query)
-                plotId = cursor.lastrowid
+                plot_setId = cursor.lastrowid
                 conn_get.commit()
 
-            if plotId is None:
-                plotId = rows[0][0]
+            if plot_setId is None:
+                plot_setId = rows[0][0]
                 lastTimeOfProcessing = rows[0][1]
 
             extractionTypes = []
-            query = "select distinct type from data_entry where plot_id = \"{}\" and timestamp > {}".format(
-                plotId, lastTimeOfProcessing)
+            query = "select distinct type from data_entry where plot_set_id = \"{}\" and timestamp > {}".format(
+                plot_setId, lastTimeOfProcessing)
             cursor.execute(query)
             rows = cursor.fetchall()
             for row in rows:
@@ -175,9 +168,9 @@ def processBatches():
 
             nonComputedTypes = list({1, 2, 3, 4} - set(extractionTypes))
             if len(nonComputedTypes) is not 0:
-                sensorExtractionTypesInfo.append([plotId, sensorName, nonComputedTypes])
+                sensorExtractionTypesInfo.append([plot_setId, sensorName, nonComputedTypes])
 
-        filenames = glob.glob(configInfo['PATH']['pathToDevices'] + str(device['name']) + '/*.tdms')
+        filenames = glob.glob(configInfo['PATH']['pathToDevices'] + str(device.name) + '/*.tdms')
 
         dfFilenames = pd.DataFrame({'filenames': filenames})
         dfFilenames['date'] = dfFilenames['filenames'].apply(
@@ -194,11 +187,12 @@ def processBatches():
         filenames = dfFilenames.filenames
 
         threads = []
-        filenameSplits = np.array_split(np.asarray(filenames), NO_OF_THREADS)
 
+        filenameSplits = np.array_split(np.asarray(filenames), NO_OF_THREADS)
         for index, filenamesSplit in enumerate(filenameSplits):
             t = threading.Thread(target=computeFeatureExtractions,
-                                 args=(device['name'], filenamesSplit, sensorExtractionTypesInfo, INFO, index))
+                                 args=(device.name, filenamesSplit,
+                                       sensorExtractionTypesInfo, INFO, index))
             threads.append(t)
             t.start()
 
@@ -207,3 +201,7 @@ def processBatches():
 
     print("Done.")
     exit(0)
+
+
+if __name__ == '__main__':
+    processBatches()

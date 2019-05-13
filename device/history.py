@@ -4,20 +4,20 @@ import ntpath
 import MySQLdb
 import datetime
 import random
-from nptdms import TdmsFile
 import json
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.graph_objs as go
-from plotly.tools import mpl_to_plotly
 import pandas as pd
 import numpy as np
-from fbprophet import Prophet
 import matplotlib.pyplot as plt
+from nptdms import TdmsFile
+from plotly.tools import mpl_to_plotly
+from fbprophet import Prophet
 from scipy.special import inv_boxcox
 from scipy.stats import boxcox
-
 from dash.dependencies import Input, Output, State
+
 from app import app
 
 conn_get = MySQLdb.connect(host="172.16.23.204", user="fourdot", passwd="4d0tFourdot", db="dp")
@@ -43,15 +43,16 @@ typeToHeadings = {
             [Input('prophet-button', 'n_clicks'),],
             [State('sensor-dropdown', 'value') ,
              State('radio-items-type-prophet', 'value')])
-def letsTryProphet(n_clicks, plotId, plotType):
+def computeProphetPrediction(n_clicks, plot_setId, plotType):
     if n_clicks is None or plotType is None:
         return None
     if plotType is None:
         return html.Label("Select plot, for which to compute")
 
     print("------------------- PROPHET START -------------------")
-    query = "select timestamp, value, type from data_entry where plot_id = \"{}\" and type = \"{}\"" \
-            "order by type, timestamp asc".format(plotId, plotType)
+    query = "select timestamp, value, type from data_entry where plot_set_id = \"{}\" and type = \"{}\"" \
+            "order by type, timestamp asc".format(plot_setId, plotType)
+
     vibrations = pd.read_sql(query, conn_get)
     if len(vibrations) < 2:
         return html.Label('Unavailable plot')
@@ -71,7 +72,7 @@ def letsTryProphet(n_clicks, plotId, plotType):
     lastDate = str(lastDate)
     firstDate = str(firstDate)
 
-    cursor.execute("SELECT sensor FROM plot WHERE id = {}".format(plotId))
+    cursor.execute("SELECT sensor FROM plot_set WHERE id = {}".format(plot_setId))
     sensorName = cursor.fetchone()[0]
 
     df = vibrations.reset_index()
@@ -80,7 +81,7 @@ def letsTryProphet(n_clicks, plotId, plotType):
     belowZeroValue = None
     if df['y'].min() < 0:
         belowZeroValue = abs(df['y'].min()) + 0.1
-        df['y'] = df['y'] + belowZeroValue # transformsa data, stores lambda key for retransform
+        df['y'] = df['y'] + belowZeroValue
 
     df['y'], lam = boxcox(df['y']) # transformsa data, stores lambda key for retransform
 
@@ -148,11 +149,11 @@ def letsTryProphet(n_clicks, plotId, plotType):
 @app.callback(Output('output-history-graph', 'children'), [
     Input('sensor-dropdown', 'value')
 ])
-def historyGraphOutput(plotId):
-    if plotId is None:
+def historyGraphOutput(plot_setId):
+    if plot_setId is None:
         return
-    query = "select timestamp, value, type from data_entry where plot_id = \"{}\" " \
-            "order by type, timestamp asc".format(plotId)
+    query = "select timestamp, value, type from data_entry where plot_set_id = \"{}\" " \
+            "order by type, timestamp asc".format(plot_setId)
     data = pd.read_sql(query, conn_get)
     data['timestamp'] = pd.to_datetime(data['timestamp'], unit='s')
     grouped = data.groupby('type')
@@ -206,11 +207,14 @@ def historyGraphOutput(plotId):
         options=options,
     ))
     graphs.append(html.Button("Compute Prophet prediction", id='prophet-button'))
+    for i in range(0,5):
+        graphs.append(html.Br())
+
     return graphs
 
 
 def getSensorDropdowns(deviceId):
-    query = "select sensor, id from plot where device_id = \"{}\"".format(deviceId)
+    query = "select sensor, id from plot_set where device_id = \"{}\"".format(deviceId)
     cursor.execute(query)
     rows = cursor.fetchall()
 
@@ -238,6 +242,7 @@ def returnLayout(deviceId):
             id="header-h2"
         ),
         dcc.Link('Home', href='/', style={'textAlign': 'right'}),
+        html.Label('Select Sensor on Deivce'),
         dcc.Dropdown(id='sensor-dropdown', options=getSensorDropdowns(deviceId),
                      searchable=False),
         html.Div(id='output-history-graph'),
@@ -249,11 +254,11 @@ def returnLayout(deviceId):
 
 
 if __name__ == '__main__':
-    plotId = 21
+    plot_setId = 21
     daysToForecast = 30
 
-    query = "select timestamp, value, type from data_entry where plot_id = \"{}\" and type = \'2\'" \
-            "order by type, timestamp asc".format(plotId)
+    query = "select timestamp, value, type from data_entry where plot_set_id = \"{}\" and type = \'2\'" \
+            "order by type, timestamp asc".format(plot_setId)
 
     vibrations = pd.read_sql(query, conn_get)
     vibrations = vibrations.rename(index=str, columns={"timestamp": "date"})
@@ -263,17 +268,17 @@ if __name__ == '__main__':
 
     lastDate = str(vibrations['date'][-1])
     firstDate = str(vibrations['date'][0])
-    cursor.execute("SELECT sensor FROM plot WHERE id = {}".format(plotId))
+    cursor.execute("SELECT sensor FROM plot_set WHERE id = {}".format(plot_setId))
     sensorName = cursor.fetchone()[0]
 
     df = vibrations.reset_index()
     df = df.rename(columns={'date': 'ds', 'value': 'y'})
 
-    df.set_index('ds').y.plot()
-    plt.title('Original Data\nSensor : {} [plot ID - {}]\n{} - {}\nDTF = {}'.format(
-        sensorName, plotId, firstDate, lastDate, daysToForecast
+    df.set_index('ds').y.plot_set()
+    plt.title('Original Data\nSensor : {} [plot_set ID - {}]\n{} - {}\nDTF = {}'.format(
+        sensorName, plot_setId, firstDate, lastDate, daysToForecast
     ))
-    # plt.savefig("/home/david/Desktop/prophet_od_{}_{}.svg".format(plotId, daysToForecast))
+    # plt.savefig("/home/david/Desktop/prophet_od_{}_{}.svg".format(plot_setId, daysToForecast))
     plt.show()
     plt.clf()
 
@@ -281,12 +286,12 @@ if __name__ == '__main__':
 
     # df['y'] = np.log(df['y'])
     df['y'], lam = boxcox(df['y']) # transformsa data, stores lambda key for retransform
-    df.set_index('ds').y.plot()
+    df.set_index('ds').y.plot_set()
 
-    plt.title('Transformed Data\nSensor : {} [plot ID - {}]\n{} - {}\nDTF = {}'.format(
-        sensorName, plotId, firstDate, lastDate, daysToForecast
+    plt.title('Transformed Data\nSensor : {} [plot_set ID - {}]\n{} - {}\nDTF = {}'.format(
+        sensorName, plot_setId, firstDate, lastDate, daysToForecast
     ))
-    # plt.savefig("/home/david/Desktop/prophet_td_{}_{}.svg".format(plotId,daysToForecast))
+    # plt.savefig("/home/david/Desktop/prophet_td_{}_{}.svg".format(plot_setId,daysToForecast))
     plt.show()
     plt.clf()
 
@@ -296,10 +301,10 @@ if __name__ == '__main__':
     fcst = m.predict(future)
 
     m.plot(fcst)
-    plt.title('Prophet Forecast Data\nSensor : {} [plot ID - {}]\n{} - {}\nDTF = {}'.format(
-        sensorName,plotId,firstDate,lastDate,daysToForecast
+    plt.title('Prophet Forecast Data\nSensor : {} [plot_set ID - {}]\n{} - {}\nDTF = {}'.format(
+        sensorName,plot_setId,firstDate,lastDate,daysToForecast
     ))
-    # plt.savefig("/home/david/Desktop/prophet_pd_{}_{}.svg".format(plotId,daysToForecast))
+    # plt.savefig("/home/david/Desktop/prophet_pd_{}_{}.svg".format(plot_setId,daysToForecast))
     plt.show()
     plt.clf()
 
@@ -314,10 +319,10 @@ if __name__ == '__main__':
     plt.plot(viz_df.value, linewidth=0.7)
     plt.plot(viz_df.yhat, color='orange', linewidth=0.8)
     plt.fill_between(viz_df.index, viz_df['yhat_upper'], viz_df['yhat_lower'], alpha=0.2, color='darkorange')
-    plt.title('Prophet Transformed Back Data\nSensor : {} [plot ID - {}]\n{} - {}\nDTF = {}'.format(
-        sensorName, plotId, firstDate, lastDate, daysToForecast
+    plt.title('Prophet Transformed Back Data\nSensor : {} [plot_set ID - {}]\n{} - {}\nDTF = {}'.format(
+        sensorName, plot_setId, firstDate, lastDate, daysToForecast
     ))
-    plt.savefig("/home/david/Desktop/prophet_ptbd_{}_{}.svg".format(plotId, daysToForecast))
+    plt.savefig("/home/david/Desktop/prophet_ptbd_{}_{}.svg".format(plot_setId, daysToForecast))
     plt.show()
     plt.clf()
 
@@ -341,7 +346,7 @@ if __name__ == '__main__':
     L = ax1.legend()  # get the legend
     L.get_texts()[0].set_text('Actual Vibrations')  # change the legend text for 1st plot
     L.get_texts()[1].set_text('Forecasted Vibrations')  # change the legend text for 2nd plot
-    plt.savefig("/home/david/Desktop/prophet_pfinal_{}_{}.svg".format(plotId, daysToForecast))
+    plt.savefig("/home/david/Desktop/prophet_pfinal_{}_{}.svg".format(plot_setId, daysToForecast))
     plt.show()
 
     print("DONE.")
