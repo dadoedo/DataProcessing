@@ -154,8 +154,8 @@ def sendStartData(n_clicks, pathname):
 
     if n_clicks is None:
         if controllerObj.senderObj.isPausedState():
-            return 'Start Receiving Data'
-        return 'Pause Receiving Data'
+            return 'Start Data Sending'
+        return 'Pause Data Sending'
     wasPaused = controllerObj.senderObj.isPausedState()
     try:
         controllerObj.send_cmd('S')

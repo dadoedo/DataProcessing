@@ -75,15 +75,15 @@ def computeFeatureExtractions(deviceName, filenames, sensorExtractionTypesInfo, 
 
             if MEAN_AVERAGE_TYPE in extractionTypes:
                 mean = sensorMeasurement.mean()
-                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(timestamp, mean, MEAN_AVERAGE_TYPE, plot_setID)
+                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(int(timestamp), mean, MEAN_AVERAGE_TYPE, plot_setID)
 
             if SKEWNESS_TYPE in extractionTypes:
                 skewness = stats.skew(sensorMeasurement)
-                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(timestamp, skewness, SKEWNESS_TYPE, plot_setID)
+                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(int(timestamp), skewness, SKEWNESS_TYPE, plot_setID)
 
             if VARIANCE_TYPE in extractionTypes:
                 variance = np.var(sensorMeasurement).mean()
-                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(timestamp, variance, VARIANCE_TYPE, plot_setID)
+                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(int(timestamp), variance, VARIANCE_TYPE, plot_setID)
 
             if RMS_TYPE in extractionTypes:
                 Fs = int(infoFile["Sensors"]["FS"]) / 100  # konverzia na Hz * 0.01, aby visiel vysledok pre ms a nie s
@@ -94,10 +94,10 @@ def computeFeatureExtractions(deviceName, filenames, sensorExtractionTypesInfo, 
                 for i in range(0, steps):
                     x_RMS[i] = np.sqrt(np.mean(sensorMeasurement[(i * w):((i + 1) * w)] ** 2))
                 rms = x_RMS.mean()
-                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(timestamp, rms, RMS_TYPE, plot_setID)
+                valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(int(timestamp), rms, RMS_TYPE, plot_setID)
 
             # Here would be placed another processing method, If I had one
-                # e.g. The partner company could call their algorithms
+            # e.g. The partner company could call their algorithms
 
         idx += 1
         pbar.update(1)
@@ -113,8 +113,7 @@ def computeFeatureExtractions(deviceName, filenames, sensorExtractionTypesInfo, 
     conn_get.commit()
 
     if plot_setID is not 0:
-        query = "UPDATE plot_set SET last_processed_time = {} WHERE id = {}".format(plot_setID, timestamp)
-        print(query)
+        query = "UPDATE plot_set SET last_processed_time = {} WHERE id = {}".format(int(timestamp), plot_setID)
         cursor.execute(query)
         conn_get.commit()
 
