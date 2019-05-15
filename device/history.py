@@ -145,7 +145,6 @@ def computeProphetPrediction(n_clicks, plot_setId, plotType):
              ]
 
 
-
 @app.callback(Output('output-history-graph', 'children'), [
     Input('sensor-dropdown', 'value')
 ])

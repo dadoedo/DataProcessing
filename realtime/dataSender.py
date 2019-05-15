@@ -36,6 +36,7 @@ class DataSender(th.Thread):
         try:
             self.socket.connect((self.ip, self.port))
             self.connected = True
+            print("CONNECTED")
         except socket.error as exc:
             print("Caught exception socket.error : %s" % exc)
             return False
@@ -43,9 +44,15 @@ class DataSender(th.Thread):
 
     def run(self):
         self.connect()
-        self.infoFile.read(self.pathToData + '/info.ini')
-
-        Fs = int(self.infoFile["Sensors"]["FS"]) / 100  # konverzia na 0.1 Hz, aby visiel vysledok pre ms a nie s
+        print(os.path.join(str(self.pathToData) + str('/info.ini')))
+        x = configparser.ConfigParser()
+        x.read(os.path.join(str('/mnt/dp/Device_B') + str('/info.ini')))
+        print(x['Sensors']['FS'])
+        self.infoFile.read(os.path.join(str(self.pathToData) + str('/info.ini')))
+#        print('------------------- ptc = {}'.format(pathToConfig))
+#        print('------------------- pathtodata = {}'.format(self.pathToData))
+#        print('------------------- defualt iF = {}'.format(self.infoFile['DEFAULT']))
+        Fs = int(self.infoFile['Sensors']['FS']) / 100  # konverzia na 0.1 Hz, aby visiel vysledok pre ms a nie s
         blockSize = int(self.infoFile["Sensors"]["BaseBlockSize"])
         measurementTime = int(self.infoFile["Sensors"]["BaseBlockSize"])/int(self.infoFile["Sensors"]["FS"])
         self.sensorName = self.infoFile['Sensors']['SensorNames'].split(';')[2]  # todo obhajit 2ku index

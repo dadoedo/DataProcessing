@@ -2,7 +2,7 @@ import configparser
 import glob
 import os
 import threading
-
+import time
 import MySQLdb
 import numpy as np
 import pandas as pd
@@ -30,7 +30,7 @@ typeToHeadings = {
 
 def computeFeatureExtractions(deviceName, filenames, sensorExtractionTypesInfo, infoFile, threadID):
     configInfo = configparser.ConfigParser()
-    configInfo.read('../config.ini')
+    configInfo.read('/var/www/html/4dot.cz/dp/config.ini')
     conn_get = MySQLdb.connect(host=configInfo["DATABASE"]["host"], user=configInfo["DATABASE"]["username"],
                                passwd=configInfo["DATABASE"]["password"], db=configInfo["DATABASE"]["database"])
     cursor = conn_get.cursor()
@@ -93,6 +93,7 @@ def computeFeatureExtractions(deviceName, filenames, sensorExtractionTypesInfo, 
                 x_RMS = np.zeros((steps, 1))  # Create array for RMS values
                 for i in range(0, steps):
                     x_RMS[i] = np.sqrt(np.mean(sensorMeasurement[(i * w):((i + 1) * w)] ** 2))
+                    x_RMS[i] = np.sqrt(np.mean(sensorMeasurement[(i * w):((i + 1) * w)] ** 2))
                 rms = x_RMS.mean()
                 valuesQuery = valuesQuery + "({}, {}, {}, {}),\n".format(int(timestamp), rms, RMS_TYPE, plot_setID)
 
@@ -120,7 +121,7 @@ def computeFeatureExtractions(deviceName, filenames, sensorExtractionTypesInfo, 
 
 def processBatches():
     configInfo = configparser.ConfigParser()
-    configInfo.read('../config.ini')
+    configInfo.read('/var/www/html/4dot.cz/dp/config.ini')
 
     conn_get = MySQLdb.connect(host=configInfo["DATABASE"]["host"], user=configInfo["DATABASE"]["username"],
                                passwd=configInfo["DATABASE"]["password"], db=configInfo["DATABASE"]["database"])
@@ -128,8 +129,14 @@ def processBatches():
 
     devices = pd.read_sql("Select * from device", conn_get)
     for device in devices.itertuples():
-        print(device.name)
+        print("----------------------------- DEVICE TIME SCRIpT")
+        #start = time.time()
+        print('------- DEVICE {} START'.format(device.name))
+        dtimestart = time.time()
         INFO = configparser.ConfigParser()
+        print(configInfo['PATH']['pathToDevices'] + str(device.name) + '/info.ini')
+        print(configInfo['PATH']['pathToDevices'])
+        print(str(device.name))
         INFO.read(configInfo['PATH']['pathToDevices'] + str(device.name) + '/info.ini')
 
         sensorExtractionTypesInfo = []
@@ -182,11 +189,8 @@ def processBatches():
         maskForNewFilesOnly = dfFilenames['date'] > lastTimeOfProcessing
         dfFilenames = dfFilenames[maskForNewFilesOnly]
         dfFilenames.reset_index()
-
-        filenames = dfFilenames.filenames
-
+       
         threads = []
-
         filenameSplits = np.array_split(np.asarray(filenames), NO_OF_THREADS)
         for index, filenamesSplit in enumerate(filenameSplits):
             t = threading.Thread(target=computeFeatureExtractions,
@@ -199,8 +203,18 @@ def processBatches():
             thread.join()
 
     print("Done.")
-    exit(0)
+    #exit(0)
 
 
 if __name__ == '__main__':
-    processBatches()
+    configInfo = configparser.ConfigParser()
+   # start = time.time()
+    configInfo.read(os.path.join('/mnt/dp/Device_B/info.ini'))
+    print(configInfo['Sensors']['FS'])
+    #processBatches()
+    #end = time.time()
+    #print('-------------------- CELKOVY KONIEC')
+    #print(end - start)
+    #print('-------------------- CELKOVY KONIEC')
+    # configInfo.read(os.path.join('/var/www/html/4dot.cz/dp/data/Device_A/info.ini'))
+    

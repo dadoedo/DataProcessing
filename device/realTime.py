@@ -14,6 +14,7 @@ from app import app
 from app import configInfo
 from app import controllerObjects
 
+
 conn_get = MySQLdb.connect(host=configInfo["DATABASE"]["host"], user=configInfo["DATABASE"]["username"],
                            passwd=configInfo["DATABASE"]["password"], db=configInfo["DATABASE"]["database"])
 cursor = conn_get.cursor()
@@ -69,7 +70,7 @@ def returnLayout(deviceId):
     portNumber = 32015 + int(deviceId)
 
     dataRecieverObj = DataReceiver(1, 'localhost', portNumber)
-    dataSenderObj = DataSender(1, "localhost", portNumber, configInfo["PATH"]["pathToDevices"] + deviceName)
+    dataSenderObj = DataSender(1, "localhost", portNumber,str(configInfo["PATH"]["pathToDevices"] + deviceName))
 
     controllerObj = DataController(1, dataRecieverObj, dataSenderObj, deviceName)
 
